@@ -8,52 +8,131 @@ import WatchLaterTwoToneIcon from '@mui/icons-material/WatchLaterTwoTone';
 import PhoneMissedTwoToneIcon from '@mui/icons-material/PhoneMissedTwoTone';
 import CallTable from "../components/CallTable";
 import CssBaseline from "@mui/material/CssBaseline";
+import {useEffect, useState} from "react";
+import {secondsToTimeString} from "../utils/TimeConverter";
+import {useNavigate} from "react-router-dom";
 
 
 const DASHBOARD_DATA_ICON_SIZE = 40;
 
-const Dashboard = () => {
-    const dashboardData = [
-        {
-            icon: <PhoneInTalkTwoToneIcon sx={{fontSize: DASHBOARD_DATA_ICON_SIZE, display: 'block'}} />,
-            title: 'Handled calls',
-            statistic: 624,
-            buttonText: 'See calls',
-            infoType: 'success'
-        },
-        {
-            icon: <WatchLaterTwoToneIcon sx={{fontSize: DASHBOARD_DATA_ICON_SIZE, display: 'block'}}/>,
-            title: 'Avg. call duration',
-            statistic: 367,
-            buttonText: 'See statistics',
-            infoType: 'info'
-        },
-        {
-            icon: <PhoneMissedTwoToneIcon sx={{fontSize: DASHBOARD_DATA_ICON_SIZE, display: 'block'}}/>,
-            title: 'Missed calls',
-            statistic: 4,
-            buttonText: 'See pending calls',
-            infoType: 'error'
-        },
+const dashboardCards = {
+    handledCalls: {
+        icon: <PhoneInTalkTwoToneIcon sx={{fontSize: DASHBOARD_DATA_ICON_SIZE, display: 'block'}}/>,
+        title: 'Handled calls',
+        buttonText: 'See calls',
+        infoType: 'success'
+    },
+    averageCallTime: {
+        icon: <WatchLaterTwoToneIcon sx={{fontSize: DASHBOARD_DATA_ICON_SIZE, display: 'block'}}/>,
+        title: 'Avg. call duration',
+        buttonText: 'See statistics',
+        infoType: 'info'
+    },
+    failedCalls: {
+        icon: <PhoneMissedTwoToneIcon sx={{fontSize: DASHBOARD_DATA_ICON_SIZE, display: 'block'}}/>,
+        title: 'Missed calls',
+        buttonText: 'See pending calls',
+        infoType: 'error'
+    }
+}
 
-    ]
+const Dashboard = () => {
+    const token = localStorage.getItem("jsonwebtoken");
+    const navigate = useNavigate();
+    const [calls, setCalls] = useState();
+    const [callStatistics, setCallStatistics] = useState();
+    const [paginationPage, setPaginationPage] = useState()
+    const [paginationPageSize, setPaginationPageSize] = useState()
+    const [callDirection, setCallDirection] = useState("")
+
+    useEffect(() => {
+        const queries = [];
+
+        if (paginationPage) queries.push(`pageNo=${paginationPage}`);
+        if (paginationPageSize) queries.push(`pageSize=${paginationPageSize}`);
+        if (callDirection) queries.push(`callDirection=${callDirection}`);
+
+        let fetchString = `/api/calls?${queries.join("&")}`;
+
+        const getCallStatistics = async (token) => {
+            const response =
+                await fetch("/api/statistics/calls", {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+            if (response.status === 200) {
+                const callStatistics = await response.json();
+                setCallStatistics(callStatistics);
+            } else {
+                navigate("/")
+            }
+
+        }
+
+        const getCalls = async (token) => {
+            const response =
+                await fetch(fetchString, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+            const callsData = await response.json();
+
+            setCalls(callsData);
+        }
+
+        getCallStatistics(token);
+        getCalls(token);
+
+    }, [paginationPage, paginationPageSize, callDirection]);
+
+    const handlePageChange = (newPage) => {
+        setPaginationPage(newPage);
+    }
+
+    const handlePageSizeChange = (newSize) => {
+        setPaginationPageSize(newSize);
+    }
+
+    const handleCallDirectionChange = (direction) => {
+        setCallDirection(direction);
+    }
+
     return (
         <Grid container>
-            <CssBaseline />
-            <Grid item sx={{my: 5, width: '100%'}}>
+            <CssBaseline/>
+            <Grid item sx={{mb: 5, width: '100%'}}>
                 <Typography variant='h2' fontWeight='bold'>Dashboard</Typography>
             </Grid>
             <Grid item sx={{width: '100%'}}>
                 <Grid container spacing={4}>
-                    {dashboardData.map(data => (
-                        <Grid item md={4} xs={12}>
-                            <DashboardCard data={data}/>
-                        </Grid>
-                    ))}
+                    <Grid item md={12} lg={4}>
+                        <DashboardCard
+                            data={dashboardCards.handledCalls}
+                            statisticValue={callStatistics?.handledCalls}
+                        />
+                    </Grid>
+                    <Grid item md={12} lg={4}>
+                        <DashboardCard
+                            data={dashboardCards.averageCallTime}
+                            statisticValue={secondsToTimeString(callStatistics?.averageCallTime, true)}
+                        />
+                    </Grid>
+                    <Grid item md={12} lg={4}>
+                        <DashboardCard
+                            data={dashboardCards.failedCalls}
+                            statisticValue={callStatistics?.failedCalls}
+                        />
+                    </Grid>
                 </Grid>
             </Grid>
             <Grid item sx={{my: 5, width: '100%'}}>
-                <CallTable />
+                <CallTable calls={calls}
+                           onPageChange={handlePageChange}
+                           onPageSizeChange={handlePageSizeChange}
+                           onCallDirectionChange={handleCallDirectionChange}
+                />
             </Grid>
         </Grid>
     )
